@@ -15,6 +15,8 @@ use Generics\Util\UrlParser;
 use Generics\Socket\InvalidUrlException;
 use Generics\Streams\FileOutputStream;
 use Generics\Client\HttpClient;
+use Generics\Socket\Url;
+use Generics\Client\HttpStatus;
 
 /**
  * WebcamFetch implementation
@@ -27,7 +29,7 @@ class WebcamFetch
     /**
      * The url where the data exists to retrieve
      *
-     * @var string
+     * @var \Generics\Socket\Url
      */
     private $url;
 
@@ -75,6 +77,13 @@ class WebcamFetch
     private $archivePath;
 
     /**
+     * Http client instance
+     *
+     * @var \Generics\Client\HttpClient
+     */
+    private $client;
+
+    /**
      * Create a new Fetch instance
      *
      * @param string $url
@@ -105,22 +114,25 @@ class WebcamFetch
         $this->needToFetch = true;
         $this->needToShrink = true;
 
-        $this->url = $url;
+        if ($url instanceof Url) {
+            $this->url = $url;
+        } else {
+            $this->url = UrlParser::parseUrl($url);
+        }
         $this->shrinkTo = $shrinkTo;
         $this->imageFileName = $imageFileName;
         $this->localMaxAge = $maxAge;
         $this->archivePath = $archivePath;
 
         if ($this->imageFileName == null) {
-            $parts = parse_url($this->url);
-            if ($parts) {
-                $this->imageFileName = basename($parts['path']);
-            }
+            $this->imageFileName = basename($this->url->getPath());
         }
 
         if (file_exists($this->imageFileName)) {
             $this->needToShrink = false;
         }
+
+        $this->client = new HttpClient($this->url);
     }
 
     /**
@@ -148,15 +160,15 @@ class WebcamFetch
             }
             return $this->needToFetch = false;
         } else {
-            $response = get_headers($this->url, 1);
+            $response = $this->client->getHeaders();
 
             if (! $response) {
                 throw new CheckRemoteException('Could not read the headers of remote url!');
             }
 
-            if ($response[0] != 'HTTP/1.1 200 OK') {
+            if ($this->client->getResponseCode() != 200) {
                 throw new CheckRemoteException('Server returned invalid reponse "{response}"!', array(
-                    'response' => $response[0]
+                    'response' => HttpStatus::getStatus($this->client->getResponseCode())
                 ));
             }
 
@@ -361,9 +373,7 @@ class WebcamFetch
             $this->archive();
         }
 
-        $url = UrlParser::parseUrl($this->url);
-
-        $client = new HttpClient($url);
+        $client = new HttpClient($this->url);
         $client->connect();
         $client->request('GET');
         $imageData = "";
