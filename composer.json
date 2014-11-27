@@ -1,0 +1,32 @@
+{
+	"keywords" : [
+		"webcam image storage shrink archive"
+	],
+	"autoload" : {
+		"psr-4" : {
+			"Nkey\\" : "src"
+		}
+	},
+	"name" : "nkey/phpWebcamFetch",
+	"type" : "library",
+	"description" : "Fetch, store, shrink and archive remote webcam images",
+	"license" : "BSD-2-Clause",
+	"require" : {
+		"php" : ">=5.3",
+		"nkey/phpGenerics" : "dev-master"
+	},
+	"require-dev" : {
+		"phpdocumentor/phpdocumentor" : "2.8.*",
+		"phpunit/phpunit" : "4.3.*"
+	},
+	"authors" : [{
+			"name" : "Maik Greubel",
+			"email" : "greubel@nkey.de",
+			"homepage" : "https://www.nkey.de",
+			"role" : "Maintainer"
+		}
+	],
+	"support" : {
+		"email" : "greubel@nkey.de"
+	}
+}
