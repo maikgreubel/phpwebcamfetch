@@ -385,7 +385,9 @@ class WebcamFetch
             );
         }
 
-        $client->disconnect();
+        if($client->isConnected()) {
+            $client->disconnect();
+        }
 
         if (substr($imageData, 0, 3) != "\xFF\xD8\xFF") {
             throw new InvalidFileDataException("The retrieved data is not a valid jpeg!");
