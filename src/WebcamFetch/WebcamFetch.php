@@ -385,7 +385,7 @@ class WebcamFetch
             );
         }
 
-        if($client->isConnected()) {
+        if ($client->isConnected()) {
             $client->disconnect();
         }
 
