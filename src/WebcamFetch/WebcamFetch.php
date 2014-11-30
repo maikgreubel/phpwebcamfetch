@@ -70,6 +70,13 @@ class WebcamFetch
     private $localMaxAge;
 
     /**
+     * Data holder for remote expired check
+     *
+     * @var \DateTime
+     */
+    private $remoteExpired;
+
+    /**
      * Path where to store the archive images
      *
      * @var string
@@ -86,7 +93,7 @@ class WebcamFetch
     /**
      * Create a new Fetch instance
      *
-     * @param string $url
+     * @param string|\Generics\Socket\Url $url
      *            The url where the original webcam image lives
      *
      * @param number|array $shrinkTo
@@ -101,7 +108,7 @@ class WebcamFetch
      * @param string $archivePath
      *            The path where to store archive images
      *
-     * @throws FetchException
+     * @throws \Nkey\WebcamFetch\FetchException
      */
     public function __construct($url, $shrinkTo = 0, $imageFileName = null, $maxAge = 0, $archivePath = null)
     {
@@ -125,7 +132,7 @@ class WebcamFetch
         $this->archivePath = $archivePath;
 
         if ($this->imageFileName == null) {
-            $this->imageFileName = basename($this->url->getPath());
+            $this->imageFileName = $this->url->getFile();
         }
 
         if (file_exists($this->imageFileName)) {
@@ -156,16 +163,23 @@ class WebcamFetch
     /**
      * Check the header retrieved by HttpClient
      *
-     * @param DateTime $localDate
-     * @throws CheckRemoteException
+     * @param \DateTime $localDate
+     * @throws \Nkey\WebcamFetch\CheckRemoteException
      * @return boolean
      */
     private function checkHeaders(DateTime $localDate)
     {
-        $response = $this->client->getHeaders();
+        $response = null;
 
-        if (! $response) {
-            throw new CheckRemoteException('Could not read the headers of remote url!');
+        try {
+            $response = $this->client->retrieveHeaders();
+        } catch (\Generics\Socket\SocketException $ex) {
+            throw new CheckRemoteException(
+                "Could not retrieve headers: {exception}",
+                array('exception' => $ex->getMessage()),
+                $ex->getCode(),
+                $ex
+            );
         }
 
         if ($this->client->getResponseCode() != 200) {
@@ -175,15 +189,15 @@ class WebcamFetch
         }
 
         if (isset($response['Last-Modified'])) {
-            $remoteDate = new DateTime($response['Last-Modified']);
+            $this->remoteExpired = new DateTime($response['Last-Modified']);
 
-            if ($localDate->getTimestamp() < $remoteDate->getTimestamp()) {
+            if ($localDate->getTimestamp() < $this->remoteExpired->getTimestamp()) {
                 return $this->needToFetch = true;
             }
         } elseif (isset($response['Expires'])) {
-            $remoteDate = new DateTime($response['Expires']);
+            $this->remoteExpired = new DateTime($response['Expires']);
 
-            if ($localDate->getTimestamp() > $remoteDate->getTimestamp()) {
+            if ($localDate->getTimestamp() > $this->remoteExpired->getTimestamp()) {
                 return $this->needToFetch = true;
             }
         }
@@ -194,7 +208,7 @@ class WebcamFetch
     /**
      * Check whether the remote file is newer than the local one
      *
-     * @throws CheckRemoteException
+     * @throws \Nkey\WebcamFetch\CheckRemoteException
      * @return boolean
      */
     public function checkIsNew()
@@ -217,7 +231,7 @@ class WebcamFetch
     /**
      * Performs the file archivation
      *
-     * @throws WriteLocalFileException
+     * @throws \Nkey\WebcamFetch\WriteLocalFileException
      */
     private function archive()
     {
@@ -249,12 +263,12 @@ class WebcamFetch
      * If the shrink level is not in bounds between 0 and 99,
      * validation has failed.
      *
-     * @throws InvalidArgumentException
+     * @throws \InvalidArgumentException
      */
     private function validatePercentage()
     {
         if ($this->shrinkTo < 0 || $this->shrinkTo >= 100) {
-            throw new InvalidArgumentException("Invalid shrink size (0 < expected < 100)");
+            throw new \InvalidArgumentException("Invalid shrink size (0 < expected < 100)");
         }
     }
 
@@ -263,7 +277,7 @@ class WebcamFetch
      * 1 and 6000 for width, and 1 and 5000 for height. Otherwise
      * validation has failed.
      *
-     * @throws InvalidArgumentException
+     * @throws \InvalidArgumentException
      */
     private function validateWidthAndHeight()
     {
@@ -271,19 +285,19 @@ class WebcamFetch
         $height = isset($this->shrinkTo['h']) ? intval($this->shrinkTo['h']) : 0;
 
         if ($width < 1 || $width > 6000) {
-            throw new InvalidArgumentException("The width value for shrinking is invalid!");
+            throw new \InvalidArgumentException("The width value for shrinking is invalid!");
         }
         if ($height < 1 || $height > 5000) {
-            throw new InvalidArgumentException("The height value for shrinking is invalid!");
+            throw new \InvalidArgumentException("The height value for shrinking is invalid!");
         }
     }
 
     /**
      * Performs some sanity checks whether shrinking is possible
      *
-     * @throws FetchException
-     * @throws InvalidArgumentException
-     * @throws FileNotFoundException
+     * @throws \Nkey\WebcamFetch\FetchException
+     * @throws \InvalidArgumentException
+     * @throws \Generics\FileNotFoundException
      */
     private function validateShrink()
     {
@@ -305,7 +319,7 @@ class WebcamFetch
     /**
      * Retrieve current width and height
      *
-     * @throws InvalidFileDataException
+     * @throws \Nkey\WebcamFetch\InvalidFileDataException
      * @return array
      */
     private function getCurrentWidthAndHeight()
@@ -331,7 +345,7 @@ class WebcamFetch
     /**
      * Calculate new dimensions based on image dimension data and the desired shrink level.
      *
-     * @throws InvalidFileDataException
+     * @throws \Nkey\WebcamFetch\InvalidFileDataException
      *
      * @return array The current and new dimension
      */
@@ -360,10 +374,10 @@ class WebcamFetch
     /**
      * Shrinks the image to the particular size given by percentage
      *
-     * @throws InvalidArgumentException
-     * @throws FileNotFoundException
-     * @throws InvalidFileDataException
-     * @throws WriteLocalFileException
+     * @throws \InvalidArgumentException
+     * @throws \Generics\FileNotFoundException
+     * @throws \Nkey\WebcamFetch\InvalidFileDataException
+     * @throws \Nkey\WebcamFetch\WriteLocalFileException
      */
     public function shrink()
     {
@@ -408,8 +422,8 @@ class WebcamFetch
     /**
      * Send image data to client
      *
-     * @throws ReadLocalFileException
-     * @throws FileNotFoundException
+     * @throws \Nkey\WebcamFetch\ReadLocalFileException
+     * @throws \Generics\FileNotFoundException
      */
     public function sendToClient()
     {
@@ -447,10 +461,11 @@ class WebcamFetch
     /**
      * Retrieve the remote file and store it locally
      *
-     * @throws FetchException
-     * @throws WriteLocalFileException
-     * @throws StreamException
-     * @throws InvalidUrlException
+     * @throws \Nkey\WebcamFetch\FetchException
+     * @throws \Nkey\WebcamFetch\WriteLocalFileException
+     * @throws \Generics\Socket\SocketException
+     * @throws \Generics\Streams\StreamException
+     * @throws \InvalidUrlException
      */
     public function retrieve()
     {
@@ -494,5 +509,15 @@ class WebcamFetch
 
         $this->needToFetch = false;
         $this->needToShrink = true;
+    }
+
+    /**
+     * Retrieve the date time when the remote image has expired
+     *
+     * @return DateTime
+     */
+    public function getRemoteExpiredDate()
+    {
+        return $this->remoteExpired;
     }
 }
