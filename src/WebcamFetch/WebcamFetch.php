@@ -303,13 +303,12 @@ class WebcamFetch
     }
 
     /**
-     * Calculate new dimensions based on image dimension data and the desired shrink level.
+     * Retrieve current width and height
      *
      * @throws InvalidFileDataException
-     *
-     * @return array The current and new dimension
+     * @return array
      */
-    private function calculateDimensions()
+    private function getCurrentWidthAndHeight()
     {
         $gdInfo = getimagesize($this->imageFileName);
         if (! $gdInfo) {
@@ -325,6 +324,20 @@ class WebcamFetch
                 'h' => $height
             ));
         }
+
+        return array($width, $height);
+    }
+
+    /**
+     * Calculate new dimensions based on image dimension data and the desired shrink level.
+     *
+     * @throws InvalidFileDataException
+     *
+     * @return array The current and new dimension
+     */
+    private function calculateDimensions()
+    {
+        list($width, $height) = $this->getCurrentWidthAndHeight();
 
         if (is_int($this->shrinkTo)) {
             $newWidth = intval($width / 100 * $this->shrinkTo);
