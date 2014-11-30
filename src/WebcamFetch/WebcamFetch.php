@@ -136,6 +136,62 @@ class WebcamFetch
     }
 
     /**
+     * Checks whether it is expired
+     *
+     * @param \DateTime $current
+     * @param \DateTime $localDate
+     * @return boolean
+     */
+    private function isExpired(DateTime $current, DateTime $localDate)
+    {
+        $expires = clone $localDate;
+        $expires->setTimestamp($expires->getTimestamp() + $this->localMaxAge);
+
+        if ($expires->getTimestamp() < $current->getTimestamp()) {
+            return $this->needToFetch = true;
+        }
+        return $this->needToFetch = false;
+    }
+
+    /**
+     * Check the header retrieved by HttpClient
+     *
+     * @param DateTime $localDate
+     * @throws CheckRemoteException
+     * @return boolean
+     */
+    private function checkHeaders(DateTime $localDate)
+    {
+        $response = $this->client->getHeaders();
+
+        if (! $response) {
+            throw new CheckRemoteException('Could not read the headers of remote url!');
+        }
+
+        if ($this->client->getResponseCode() != 200) {
+            throw new CheckRemoteException('Server returned invalid reponse "{response}"!', array(
+                'response' => HttpStatus::getStatus($this->client->getResponseCode())
+            ));
+        }
+
+        if (isset($response['Last-Modified'])) {
+            $remoteDate = new DateTime($response['Last-Modified']);
+
+            if ($localDate->getTimestamp() < $remoteDate->getTimestamp()) {
+                return $this->needToFetch = true;
+            }
+        } elseif (isset($response['Expires'])) {
+            $remoteDate = new DateTime($response['Expires']);
+
+            if ($localDate->getTimestamp() > $remoteDate->getTimestamp()) {
+                return $this->needToFetch = true;
+            }
+        }
+
+        return $this->needToFetch = false;
+    }
+
+    /**
      * Check whether the remote file is newer than the local one
      *
      * @throws CheckRemoteException
@@ -152,42 +208,10 @@ class WebcamFetch
         $localDate->setTimestamp(filemtime($this->imageFileName));
 
         if ($this->localMaxAge > 0) {
-            $expires = clone $localDate;
-            $expires->setTimestamp($expires->getTimestamp() + $this->localMaxAge);
-
-            if ($expires->getTimestamp() < $current->getTimestamp()) {
-                return $this->needToFetch = true;
-            }
-            return $this->needToFetch = false;
+            return $this->isExpired($current, $localDate);
         } else {
-            $response = $this->client->getHeaders();
-
-            if (! $response) {
-                throw new CheckRemoteException('Could not read the headers of remote url!');
-            }
-
-            if ($this->client->getResponseCode() != 200) {
-                throw new CheckRemoteException('Server returned invalid reponse "{response}"!', array(
-                    'response' => HttpStatus::getStatus($this->client->getResponseCode())
-                ));
-            }
-
-            if (isset($response['Last-Modified'])) {
-                $remoteDate = new DateTime($response['Last-Modified']);
-
-                if ($localDate->getTimestamp() < $remoteDate->getTimestamp()) {
-                    return $this->needToFetch = true;
-                }
-            } elseif (isset($response['Expires'])) {
-                $remoteDate = new DateTime($response['Expires']);
-
-                if ($localDate->getTimestamp() > $remoteDate->getTimestamp()) {
-                    return $this->needToFetch = true;
-                }
-            }
+            return $this->checkHeaders($localDate);
         }
-
-        return $this->needToFetch = false;
     }
 
     /**
