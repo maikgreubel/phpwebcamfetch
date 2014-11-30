@@ -246,6 +246,39 @@ class WebcamFetch
     }
 
     /**
+     * If the shrink level is not in bounds between 0 and 99,
+     * validation has failed.
+     *
+     * @throws InvalidArgumentException
+     */
+    private function validatePercentage()
+    {
+        if ($this->shrinkTo < 0 || $this->shrinkTo >= 100) {
+            throw new InvalidArgumentException("Invalid shrink size (0 < expected < 100)");
+        }
+    }
+
+    /**
+     * If the shrink level is a dimension, pixel width and height must be
+     * 1 and 6000 for width, and 1 and 5000 for height. Otherwise
+     * validation has failed.
+     *
+     * @throws InvalidArgumentException
+     */
+    private function validateWidthAndHeight()
+    {
+        $width = isset($this->shrinkTo['w']) ? intval($this->shrinkTo['w']) : 0;
+        $height = isset($this->shrinkTo['h']) ? intval($this->shrinkTo['h']) : 0;
+
+        if ($width < 1 || $width > 6000) {
+            throw new InvalidArgumentException("The width value for shrinking is invalid!");
+        }
+        if ($height < 1 || $height > 5000) {
+            throw new InvalidArgumentException("The height value for shrinking is invalid!");
+        }
+    }
+
+    /**
      * Performs some sanity checks whether shrinking is possible
      *
      * @throws FetchException
@@ -259,20 +292,9 @@ class WebcamFetch
         }
 
         if (is_int($this->shrinkTo)) {
-            if ($this->shrinkTo < 0 || $this->shrinkTo >= 100) {
-                throw new InvalidArgumentException("Invalid shrink size (0 < expected < 100)");
-            }
+            $this->validatePercentage();
         } elseif (is_array($this->shrinkTo)) {
-
-            $width = isset($this->shrinkTo['w']) ? intval($this->shrinkTo['w']) : 0;
-            $height = isset($this->shrinkTo['h']) ? intval($this->shrinkTo['h']) : 0;
-
-            if ($width < 1 || $width > 6000) {
-                throw new InvalidArgumentException("The width value for shrinking is invalid!");
-            }
-            if ($height < 1 || $height > 5000) {
-                throw new InvalidArgumentException("The height value for shrinking is invalid!");
-            }
+            $this->validateWidthAndHeight();
         }
 
         if (! file_exists($this->imageFileName)) {
