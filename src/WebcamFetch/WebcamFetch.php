@@ -246,18 +246,14 @@ class WebcamFetch
     }
 
     /**
-     * Shrinks the image to the particular size given by percentage
+     * Performs some sanity checks whether shrinking is possible
      *
+     * @throws FetchException
      * @throws InvalidArgumentException
      * @throws FileNotFoundException
-     * @throws InvalidFileDataException
-     * @throws WriteLocalFileException
      */
-    public function shrink()
+    private function validateShrink()
     {
-        if (! $this->needToShrink || intval($this->shrinkTo) == 0) {
-            return;
-        }
         if ($this->needToFetch) {
             throw new FetchException("Please retrieve the remote file first!");
         }
@@ -267,12 +263,14 @@ class WebcamFetch
                 throw new InvalidArgumentException("Invalid shrink size (0 < expected < 100)");
             }
         } elseif (is_array($this->shrinkTo)) {
-            if (! isset($this->shrinkTo['w']) ||
-                intval($this->shrinkTo['w']) < 1 || intval($this->shrinkTo['w']) > 6000) {
+
+            $width = isset($this->shrinkTo['w']) ? intval($this->shrinkTo['w']) : 0;
+            $height = isset($this->shrinkTo['h']) ? intval($this->shrinkTo['h']) : 0;
+
+            if ($width < 1 || $width > 6000) {
                 throw new InvalidArgumentException("The width value for shrinking is invalid!");
             }
-            if (! isset($this->shrinkTo['h']) ||
-                intval($this->shrinkTo['h']) < 1 || intval($this->shrinkTo['h']) > 5000) {
+            if ($height < 1 || $height > 5000) {
                 throw new InvalidArgumentException("The height value for shrinking is invalid!");
             }
         }
@@ -280,7 +278,17 @@ class WebcamFetch
         if (! file_exists($this->imageFileName)) {
             throw new FileNotFoundException("Shrinking failed, the local file does not exist!");
         }
+    }
 
+    /**
+     * Calculate new dimensions based on image dimension data and the desired shrink level.
+     *
+     * @throws InvalidFileDataException
+     *
+     * @return array The current and new dimension
+     */
+    private function calculateDimensions()
+    {
         $gdInfo = getimagesize($this->imageFileName);
         if (! $gdInfo) {
             throw new InvalidFileDataException("Could not read the dimensions of the local file!");
@@ -310,6 +318,28 @@ class WebcamFetch
                 'h' => $newHeight
             ));
         }
+
+        return array($width, $height, $newWidth, $newHeight);
+    }
+
+    /**
+     * Shrinks the image to the particular size given by percentage
+     *
+     * @throws InvalidArgumentException
+     * @throws FileNotFoundException
+     * @throws InvalidFileDataException
+     * @throws WriteLocalFileException
+     */
+    public function shrink()
+    {
+        if (! $this->needToShrink || intval($this->shrinkTo) == 0) {
+            return;
+        }
+
+        $this->validateShrink();
+
+        list($width, $height, $newWidth, $newHeight) = $this->calculateDimensions();
+
 
         $imgJpg = imagecreatefromjpeg($this->imageFileName);
         if (! $imgJpg) {
