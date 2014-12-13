@@ -56,6 +56,7 @@
 		<delete dir="${basedir}/build/pdepend" />
 		<delete dir="${basedir}/build/phpdox" />
 		<delete dir="${basedir}/coverage" />
+		<delete dir="${basedir}/API_Documentation" />
 		<property name="clean.done" value="true" />
 	</target>
 
@@ -320,7 +321,11 @@
 
 	<target name="phpdox"
 		depends="phploc-ci,phpcs-ci,phpmd-ci,phpdox-unix,phpdox-windows"
-		description="Generate project documentation using phpDox" />
+		description="Generate project documentation using phpDox">
+		<copy todir="${basedir}/API_Documentation">
+		    <fileset dir="${basedir}/build/api/html" />
+		</copy>
+	</target>
 
 	<target name="phpdox-windows" if="is_windows">
 		<exec executable="${toolsdir}phpdox.bat" dir="${basedir}" />
