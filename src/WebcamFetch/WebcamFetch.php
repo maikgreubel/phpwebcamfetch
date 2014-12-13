@@ -112,10 +112,6 @@ class WebcamFetch
      */
     public function __construct($url, $shrinkTo = 0, $imageFileName = null, $maxAge = 0, $archivePath = null)
     {
-        if (! function_exists('imagecreatefromjpeg')) {
-            throw new FetchException("GD2 extension is not enabled. Please configure your php.ini properly!");
-        }
-
         clearstatcache();
 
         $this->needToFetch = true;
@@ -430,6 +426,7 @@ class WebcamFetch
      *
      * @throws \Nkey\WebcamFetch\ReadLocalFileException
      * @throws \Generics\FileNotFoundException
+     * @throws \Nkey\WebcamFetch\SendDataException
      */
     public function sendToClient()
     {
@@ -441,6 +438,10 @@ class WebcamFetch
 
             $localDate = new DateTime('UTC');
             $localDate->setTimestamp(filemtime($this->imageFileName));
+
+            if (php_sapi_name() == 'cli') {
+                throw new SendDataException("Can not send data to CLI");
+            }
 
             header('Content-Type: image/jpeg');
             header('Content-Length: ' . strlen($data));

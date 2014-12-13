@@ -281,4 +281,62 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
 
         $this->assertTrue(file_exists($archived));
     }
+
+    /**
+     * @expectedException \Nkey\WebcamFetch\FetchException
+     */
+    public function testWrongExecutionOrder()
+    {
+        $url = UrlParser::parseUrl("http://webcamsdemexico.net/acapulco1/live.jpg");
+
+        $wcf = new WebcamFetch($url, 80);
+
+        $wcf->shrink();
+    }
+
+    /**
+     * @expectedException \Generics\FileNotFoundException
+     */
+    public function testShrinkFailedOnMissingLocalFile()
+    {
+        $url = UrlParser::parseUrl("http://webcamsdemexico.net/acapulco1/live.jpg");
+
+        $wcf = new WebcamFetch($url, 80, $this->localFileName);
+
+        $wcf->retrieve();
+
+        unlink($this->localFileName);
+
+        $wcf->shrink();
+    }
+
+    /**
+     * @expectedException \Nkey\WebcamFetch\SendDataException
+     */
+    public function testCliSendingException()
+    {
+        $url = UrlParser::parseUrl("http://webcamsdemexico.net/acapulco1/live.jpg");
+
+        $wcf = new WebcamFetch($url, 80, $this->localFileName);
+
+        $wcf->retrieve();
+
+        $wcf->sendToClient();
+    }
+
+    /**
+     * @expectedException \Generics\FileNotFoundException
+     */
+    public function testSendingNonExistingFile()
+    {
+        $url = UrlParser::parseUrl("http://webcamsdemexico.net/acapulco1/live.jpg");
+
+        $wcf = new WebcamFetch($url, 80, $this->localFileName);
+
+        $wcf->retrieve();
+
+        unlink($this->localFileName);
+
+        $wcf->sendToClient();
+    }
 }
