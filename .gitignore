@@ -7,3 +7,5 @@
 /.settings
 
 /coverage/
+/build/
+/cache.properties

@@ -232,9 +232,11 @@ class WebcamFetch
      * Performs the file archivation
      *
      * @throws \Nkey\WebcamFetch\WriteLocalFileException
+     * @return \DateTime
      */
     private function archive()
     {
+        $result = null;
         if ($this->archivePath != null) {
             if (is_dir($this->archivePath)) {
                 $mtime = filemtime($this->imageFileName);
@@ -250,13 +252,17 @@ class WebcamFetch
                     $pinfo['extension'] //
                 );
 
-                if (! copy($this->imageFileName, $newName)) {
+                if (! rename($this->imageFileName, $newName)) {
                     throw new WriteLocalFileException("Could not archive local file, copying failed!");
                 }
+
+                $result = $newName;
             } else {
                 throw new WriteLocalFileException("Could not archive local file, archive path is not a directory!");
             }
         }
+
+        return $result;
     }
 
     /**
@@ -467,14 +473,14 @@ class WebcamFetch
      * @throws \Generics\Streams\StreamException
      * @throws \InvalidUrlException
      */
-    public function retrieve()
+    public function retrieve(&$archived = null)
     {
         if (! $this->needToFetch) {
             return;
         }
 
         if (file_exists($this->imageFileName)) {
-            $this->archive();
+            $archived = $this->archive();
         }
 
         $client = new HttpClient($this->url);

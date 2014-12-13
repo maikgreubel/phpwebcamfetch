@@ -9,10 +9,12 @@ use Generics\Streams\FileOutputStream;
 class WebcamFetchTest extends \PHPUnit_Framework_TestCase
 {
 
-    private $localFileName = "acapulco.jpeg";
+    private $localFileName;
 
     public function setUp()
     {
+        $this->localFileName = __DIR__ . "acapulco.jpeg";
+
         if (file_exists($this->localFileName)) {
             unlink($this->localFileName);
         }
@@ -189,5 +191,94 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
         $wcf = new WebcamFetch($url, 80);
 
         $wcf->checkIsNew();
+    }
+
+    /**
+     * @expectedException \InvalidArgumentException
+     */
+    public function testInvalidWidth()
+    {
+        $url = UrlParser::parseUrl("http://webcamsdemexico.net/acapulco1/live.jpg");
+
+        if (file_exists($url->getFile())) {
+            unlink($url->getFile());
+        }
+
+        $wcf = new WebcamFetch($url, array('w' => 8000, 'h' => 6000), null, 1);
+
+        $this->assertTrue($wcf->checkIsNew());
+
+        $wcf->retrieve();
+
+        $wcf->shrink();
+    }
+
+    /**
+     * @expectedException \InvalidArgumentException
+     */
+    public function testInvalidHeight()
+    {
+        $url = UrlParser::parseUrl("http://webcamsdemexico.net/acapulco1/live.jpg");
+
+        if (file_exists($url->getFile())) {
+            unlink($url->getFile());
+        }
+
+        $wcf = new WebcamFetch($url, array('w' => 6000, 'h' => 6000), null, 1);
+
+        $this->assertTrue($wcf->checkIsNew());
+
+        $wcf->retrieve();
+
+        $wcf->shrink();
+    }
+
+    public function testWidthAndHeight()
+    {
+        $url = UrlParser::parseUrl("http://webcamsdemexico.net/acapulco1/live.jpg");
+
+        if (file_exists($url->getFile())) {
+            unlink($url->getFile());
+        }
+
+        $wcf = new WebcamFetch($url, array('w' => 200, 'h' => 150), null, 1);
+
+        $this->assertTrue($wcf->checkIsNew());
+
+        $wcf->retrieve();
+
+        $wcf->shrink();
+    }
+
+    public function testArchive()
+    {
+        $archivePath = __DIR__ . "/testfolder";
+
+        if (!file_exists($archivePath)) {
+            mkdir($archivePath, "0777");
+        }
+
+        $url = UrlParser::parseUrl("http://webcamsdemexico.net/acapulco1/live.jpg");
+
+        if (file_exists($url->getFile())) {
+            unlink($url->getFile());
+        }
+
+        $wcf = new WebcamFetch($url, array('w' => 200, 'h' => 150), $this->localFileName, 1, $archivePath);
+
+        $this->assertTrue($wcf->checkIsNew());
+
+        $wcf->retrieve();
+
+        $wcf->shrink();
+
+        sleep(2);
+
+        $this->assertTrue($wcf->checkIsNew());
+
+        $archived = null;
+        $wcf->retrieve($archived);
+
+        $this->assertTrue(file_exists($archived));
     }
 }
