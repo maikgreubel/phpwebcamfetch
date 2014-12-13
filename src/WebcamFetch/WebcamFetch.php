@@ -513,6 +513,8 @@ class WebcamFetch
         }
         $fos->close();
 
+        chmod($fos, 0664);
+
         $this->needToFetch = false;
         $this->needToShrink = true;
     }

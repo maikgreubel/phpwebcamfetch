@@ -255,7 +255,7 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
         $archivePath = __DIR__ . "/testfolder";
 
         if (!file_exists($archivePath)) {
-            mkdir($archivePath, "0777");
+            mkdir($archivePath, 0777);
         }
 
         $url = UrlParser::parseUrl("http://webcamsdemexico.net/acapulco1/live.jpg");
