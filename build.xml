@@ -296,9 +296,9 @@
 			<arg value="--log-junit" />
 			<arg path="${basedir}/build/logs/junit.xml" />
 			<arg value="--coverage-html" />
-			<arg path="${basedir}/coverage" />
+			<arg path="${basedir}/build/coverage/html" />
 			<arg value="--coverage-xml" />
-			<arg path="${basedir}/build/coverage" />
+			<arg path="${basedir}/build/coverage/xml" />
 		</exec>
 	</target>
 
@@ -313,18 +313,15 @@
 			<arg value="--log-junit" />
 			<arg path="${basedir}/build/logs/junit.xml" />
 			<arg value="--coverage-html" />
-			<arg path="${basedir}/coverage" />
+			<arg path="${basedir}/build/coverage/html" />
 			<arg value="--coverage-xml" />
-			<arg path="${basedir}/build/coverage" />
+			<arg path="${basedir}/build/coverage/xml" />
 		</exec>
 	</target>
 
 	<target name="phpdox"
 		depends="phploc-ci,phpcs-ci,phpmd-ci,phpdox-unix,phpdox-windows"
 		description="Generate project documentation using phpDox">
-		<copy todir="${basedir}/API_Documentation">
-		    <fileset dir="${basedir}/build/api/html" />
-		</copy>
 	</target>
 
 	<target name="phpdox-windows" if="is_windows">
