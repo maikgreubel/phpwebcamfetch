@@ -5,15 +5,19 @@ use Nkey\WebcamFetch\WebcamFetch;
 use Generics\Streams\FileInputStream;
 use Generics\Util\UrlParser;
 use Generics\Streams\FileOutputStream;
+use Generics\Logger\SimpleLogger;
 
 class WebcamFetchTest extends \PHPUnit_Framework_TestCase
 {
 
-    private $localFileName;
+    protected $localFileName;
+
+    protected $logFile;
 
     public function setUp()
     {
-        $this->localFileName = __DIR__ . "acapulco.jpeg";
+        $this->localFileName = __DIR__ . "/acapulco.jpeg";
+        $this->logFile = __DIR__ . "/webcamfetch.log";
 
         if (file_exists($this->localFileName)) {
             unlink($this->localFileName);
@@ -38,6 +42,7 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
     public function testWebcamFetch()
     {
         $wcf = new WebcamFetch("http://webcamsdemexico.net/acapulco1/live.jpg", 80, $this->localFileName, 300);
+        $wcf->setLogger(new SimpleLogger($this->logFile));
 
         $this->assertTrue($wcf->checkIsNew());
 
@@ -57,6 +62,7 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
         $url = UrlParser::parseUrl("http://webcamsdemexico.net/acapulco1/live.jpg");
 
         $wcf = new WebcamFetch($url, 80, $this->localFileName, 300);
+        $wcf->setLogger(new SimpleLogger($this->logFile));
 
         $this->assertTrue($wcf->checkIsNew());
 
@@ -82,6 +88,7 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
         }
 
         $wcf = new WebcamFetch($url, 80, null, 300);
+        $wcf->setLogger(new SimpleLogger($this->logFile));
 
         $this->assertTrue($wcf->checkIsNew());
 
@@ -107,6 +114,7 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
         }
 
         $wcf = new WebcamFetch($url, 80, null, 1);
+        $wcf->setLogger(new SimpleLogger($this->logFile));
 
         $this->assertTrue($wcf->checkIsNew());
 
@@ -132,6 +140,7 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
         }
 
         $wcf = new WebcamFetch($url, 80);
+        $wcf->setLogger(new SimpleLogger($this->logFile));
 
         $this->assertTrue($wcf->checkIsNew());
 
@@ -157,6 +166,7 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
         $url = UrlParser::parseUrl("http://localhost:8421/nonexisting.jpeg");
 
         $wcf = new WebcamFetch($url, 80);
+        $wcf->setLogger(new SimpleLogger($this->logFile));
 
         $wcf->checkIsNew();
 
@@ -174,6 +184,7 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
         $url = UrlParser::parseUrl("http://localhost:8421/nonexisting.jpeg");
 
         $wcf = new WebcamFetch($url, 80);
+        $wcf->setLogger(new SimpleLogger($this->logFile));
 
         $wcf->checkIsNew();
     }
@@ -189,6 +200,7 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
         $url = UrlParser::parseUrl("http://httpbin.org/nonexisting.jpeg");
 
         $wcf = new WebcamFetch($url, 80);
+        $wcf->setLogger(new SimpleLogger($this->logFile));
 
         $wcf->checkIsNew();
     }
@@ -205,6 +217,7 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
         }
 
         $wcf = new WebcamFetch($url, array('w' => 8000, 'h' => 6000), null, 1);
+        $wcf->setLogger(new SimpleLogger($this->logFile));
 
         $this->assertTrue($wcf->checkIsNew());
 
@@ -225,6 +238,7 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
         }
 
         $wcf = new WebcamFetch($url, array('w' => 6000, 'h' => 6000), null, 1);
+        $wcf->setLogger(new SimpleLogger($this->logFile));
 
         $this->assertTrue($wcf->checkIsNew());
 
@@ -242,6 +256,7 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
         }
 
         $wcf = new WebcamFetch($url, array('w' => 200, 'h' => 150), null, 1);
+        $wcf->setLogger(new SimpleLogger($this->logFile));
 
         $this->assertTrue($wcf->checkIsNew());
 
@@ -265,6 +280,7 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
         }
 
         $wcf = new WebcamFetch($url, array('w' => 200, 'h' => 150), $this->localFileName, 1, $archivePath);
+        $wcf->setLogger(new SimpleLogger($this->logFile));
 
         $this->assertTrue($wcf->checkIsNew());
 
@@ -290,6 +306,7 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
         $url = UrlParser::parseUrl("http://webcamsdemexico.net/acapulco1/live.jpg");
 
         $wcf = new WebcamFetch($url, 80);
+        $wcf->setLogger(new SimpleLogger($this->logFile));
 
         $wcf->shrink();
     }
@@ -302,6 +319,7 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
         $url = UrlParser::parseUrl("http://webcamsdemexico.net/acapulco1/live.jpg");
 
         $wcf = new WebcamFetch($url, 80, $this->localFileName);
+        $wcf->setLogger(new SimpleLogger($this->logFile));
 
         $wcf->retrieve();
 
@@ -318,6 +336,7 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
         $url = UrlParser::parseUrl("http://webcamsdemexico.net/acapulco1/live.jpg");
 
         $wcf = new WebcamFetch($url, 80, $this->localFileName);
+        $wcf->setLogger(new SimpleLogger($this->logFile));
 
         $wcf->retrieve();
 
@@ -332,6 +351,7 @@ class WebcamFetchTest extends \PHPUnit_Framework_TestCase
         $url = UrlParser::parseUrl("http://webcamsdemexico.net/acapulco1/live.jpg");
 
         $wcf = new WebcamFetch($url, 80, $this->localFileName);
+        $wcf->setLogger(new SimpleLogger($this->logFile));
 
         $wcf->retrieve();
 

@@ -17,13 +17,16 @@ use Generics\Streams\FileOutputStream;
 use Generics\Client\HttpClient;
 use Generics\Socket\Url;
 use Generics\Client\HttpStatus;
+use \Psr\Log\LoggerAwareInterface;
+use Psr\Log\LoggerInterface;
+use Psr\Log\NullLogger;
 
 /**
  * WebcamFetch implementation
  *
  * @author Maik Greubel <greubel@nkey.de>
  */
-class WebcamFetch
+class WebcamFetch implements LoggerAwareInterface
 {
 
     /**
@@ -91,6 +94,13 @@ class WebcamFetch
     private $client;
 
     /**
+     * Logger instance
+     *
+     * @var LoggerInterface
+     */
+    private $logger;
+
+    /**
      * Create a new Fetch instance
      *
      * @param string|\Generics\Socket\Url $url
@@ -112,6 +122,8 @@ class WebcamFetch
      */
     public function __construct($url, $shrinkTo = 0, $imageFileName = null, $maxAge = 0, $archivePath = null)
     {
+        $this->logger = new NullLogger();
+
         clearstatcache();
 
         $this->needToFetch = true;
@@ -151,8 +163,10 @@ class WebcamFetch
         $expires->setTimestamp($expires->getTimestamp() + $this->localMaxAge);
 
         if ($expires->getTimestamp() < $current->getTimestamp()) {
+            $this->logger->debug("Local timestamp is older than defined max age");
             return $this->needToFetch = true;
         }
+        $this->logger->debug("Does not need to fetch");
         return $this->needToFetch = false;
     }
 
@@ -170,6 +184,10 @@ class WebcamFetch
         try {
             $response = $this->client->retrieveHeaders();
         } catch (\Generics\Socket\SocketException $ex) {
+            $this->logger->critical("{extype} occured: {msg}", array(
+                'extype' => get_class($ex),
+                'msg' => $ex->getMessage()
+            ));
             throw new CheckRemoteException(
                 "Could not retrieve headers: {exception}",
                 array('exception' => $ex->getMessage()),
@@ -179,6 +197,10 @@ class WebcamFetch
         }
 
         if ($this->client->getResponseCode() != 200) {
+            $this->logger->error("Invalid response from server {response}", array(
+                'response' => HttpStatus::getStatus($this->client->getResponseCode())
+            ));
+
             throw new CheckRemoteException('Server returned invalid reponse "{response}"!', array(
                 'response' => HttpStatus::getStatus($this->client->getResponseCode())
             ));
@@ -188,12 +210,14 @@ class WebcamFetch
             $this->remoteExpired = new DateTime($response['Last-Modified']);
 
             if ($localDate->getTimestamp() < $this->remoteExpired->getTimestamp()) {
+                $this->logger->debug("Last-modified is newer than local file");
                 return $this->needToFetch = true;
             }
         } elseif (isset($response['Expires'])) {
             $this->remoteExpired = new DateTime($response['Expires']);
 
             if ($localDate->getTimestamp() > $this->remoteExpired->getTimestamp()) {
+                $this->logger->debug("Expires is older than local file");
                 return $this->needToFetch = true;
             }
         }
@@ -210,6 +234,7 @@ class WebcamFetch
     public function checkIsNew()
     {
         if (! file_exists($this->imageFileName)) {
+            $this->logger->debug("Local file does not exist");
             return $this->needToFetch = true;
         }
 
@@ -249,11 +274,13 @@ class WebcamFetch
                 );
 
                 if (! rename($this->imageFileName, $newName)) {
+                    $this->logger->error("Could not move local file to archive");
                     throw new WriteLocalFileException("Could not archive local file, copying failed!");
                 }
 
                 $result = $newName;
             } else {
+                $this->logger->error("Archive path is not a directory");
                 throw new WriteLocalFileException("Could not archive local file, archive path is not a directory!");
             }
         }
@@ -270,6 +297,7 @@ class WebcamFetch
     private function validatePercentage()
     {
         if ($this->shrinkTo < 0 || $this->shrinkTo >= 100) {
+            $this->logger->error("Invalid size given for shrinking");
             throw new \InvalidArgumentException("Invalid shrink size (0 < expected < 100)");
         }
     }
@@ -287,9 +315,11 @@ class WebcamFetch
         $height = isset($this->shrinkTo['h']) ? intval($this->shrinkTo['h']) : 0;
 
         if ($width < 1 || $width > 6000) {
+            $this->logger->error("Invalid width given for shrinking");
             throw new \InvalidArgumentException("The width value for shrinking is invalid!");
         }
         if ($height < 1 || $height > 5000) {
+            $this->logger->error("Invalid height given for shrinking");
             throw new \InvalidArgumentException("The height value for shrinking is invalid!");
         }
     }
@@ -304,6 +334,7 @@ class WebcamFetch
     private function validateShrink()
     {
         if ($this->needToFetch) {
+            $this->logger->error("Can not shrink, need to retrieve the file first");
             throw new FetchException("Please retrieve the remote file first!");
         }
 
@@ -314,6 +345,7 @@ class WebcamFetch
         }
 
         if (! file_exists($this->imageFileName)) {
+            $this->logger->error("Can not shrink, local file does not exist");
             throw new FileNotFoundException("Shrinking failed, the local file does not exist!");
         }
     }
@@ -335,6 +367,10 @@ class WebcamFetch
         $height = intval($gdInfo[1]);
 
         if ($width < 1 || $width > 6000 || $height < 1 || $height > 5000) {
+            $this->logger->error("Invalid dimensions given (w = {w}, h = {h})", array(
+                'w' => $width,
+                'h' => $height
+            ));
             throw new InvalidFileDataException("The remote file has invalid dimensions (w = {w}, h = {h})", array(
                 'w' => $width,
                 'h' => $height
@@ -364,6 +400,10 @@ class WebcamFetch
         }
 
         if ($newWidth < 1 || $newWidth > 6000 || $newHeight < 1 || $newHeight > 5000) {
+            $this->logger->error("The local file has invalid dimensions (w = {w}, h = {h})", array(
+                'w' => $width,
+                'h' => $newHeight
+            ));
             throw new InvalidFileDataException("The local file has invalid dimensions (w = {w}, h = {h})", array(
                 'w' => $width,
                 'h' => $newHeight
@@ -384,6 +424,7 @@ class WebcamFetch
     public function shrink()
     {
         if (! $this->needToShrink || intval($this->shrinkTo) == 0) {
+            $this->logger->debug("Shrinking not necessary");
             return;
         }
 
@@ -394,22 +435,26 @@ class WebcamFetch
 
         $imgJpg = imagecreatefromjpeg($this->imageFileName);
         if (! $imgJpg) {
+            $this->logger->error("Could not read the image data");
             throw new InvalidFileDataException("Could not read the image data out of remote file!");
         }
 
         $imgNew = imagecreatetruecolor($newWidth, $newHeight);
         if (! $imgNew) {
+            $this->logger->error("Could not allocate true color buffer");
             imagedestroy($imgJpg);
             throw new InvalidFileDataException("Could not allocate destination buffer for image file!");
         }
 
         if (! imagecopyresized($imgNew, $imgJpg, 0, 0, 0, 0, $newWidth, $newHeight, $width, $height)) {
+            $this->logger->error("Could not copy data with given dimensions");
             imagedestroy($imgJpg);
             imagedestroy($imgNew);
             throw new InvalidFileDataException("Could not copy data to resize!");
         }
 
         if (! imagejpeg($imgNew, $this->imageFileName)) {
+            $this->logger->error("Could not store new image");
             imagedestroy($imgJpg);
             imagedestroy($imgNew);
             throw new WriteLocalFileException("Could not write the shrinked data into file!");
@@ -433,6 +478,7 @@ class WebcamFetch
         if (file_exists($this->imageFileName)) {
             $data = file_get_contents($this->imageFileName);
             if (! $data) {
+                $this->logger->error("Could not open local file for reading");
                 throw new ReadLocalFileException("Could not open local file for reading!");
             }
 
@@ -440,6 +486,7 @@ class WebcamFetch
             $localDate->setTimestamp(filemtime($this->imageFileName));
 
             if (php_sapi_name() == 'cli') {
+                $this->logger->error("Sending file to cli not possible");
                 throw new SendDataException("Can not send data to CLI");
             }
 
@@ -451,6 +498,7 @@ class WebcamFetch
 
             echo $data;
         } else {
+            $this->logger->error("Local file does not exist");
             throw new FileNotFoundException("Local file does not exist!");
         }
     }
@@ -462,6 +510,7 @@ class WebcamFetch
     {
         if (file_exists($this->imageFileName)) {
             unlink($this->imageFileName);
+            $this->logger->info("Local file has been removed");
         }
     }
 
@@ -477,6 +526,7 @@ class WebcamFetch
     public function retrieve(&$archived = null)
     {
         if (! $this->needToFetch) {
+            $this->logger->debug("Fetching not necessary");
             return;
         }
 
@@ -501,6 +551,7 @@ class WebcamFetch
         }
 
         if (substr($imageData, 0, 3) != "\xFF\xD8\xFF") {
+            $this->logger->error("Retrieved data is not a valid jpeg file");
             throw new InvalidFileDataException("The retrieved data is not a valid jpeg!");
         }
 
@@ -510,6 +561,7 @@ class WebcamFetch
         $fos->write($imageData);
         $fos->flush();
         if ($fos->count() != $imageDataLen) {
+            $this->logger->error("Local file could not be written");
             throw new WriteLocalFileException("Could not write the data to local file!");
         }
         $fos->close();
@@ -518,6 +570,8 @@ class WebcamFetch
 
         $this->needToFetch = false;
         $this->needToShrink = true;
+
+        $this->logger->info("Retrieved data");
     }
 
     /**
@@ -527,6 +581,18 @@ class WebcamFetch
      */
     public function getRemoteExpiredDate()
     {
+        $this->logger->debug("Remote expired date is {date}", array(
+            'date' => $this->remoteExpired->format('Y-m-d H:i:s')
+        ));
         return $this->remoteExpired;
+    }
+
+    /**
+     * (non-PHPdoc)
+     * @see \Psr\Log\LoggerAwareInterface::setLogger()
+     */
+    public function setLogger(LoggerInterface $logger)
+    {
+        $this->logger = $logger;
     }
 }
