@@ -14,7 +14,7 @@
 	"reqire" : {
 		"php" : ">=5.3",
 		"ext-gd2" : "*",
-		"nkey/phpGenerics" : "dev-master"
+		"nkey/phpGenerics" : "1.0"
 	},
 	"require-dev" : {
 		"phpunit/phpunit" : "4.4.0",
