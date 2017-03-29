@@ -1,34 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE project>
 <project name="phpGenerics" default="build">
-	<!-- By default, we assume all tools to be on the $PATH -->
-	<!-- <property name="toolsdir" value="" /> -->
 
 	<!-- Uncomment the following when the tools are in ${basedir}/vendor/bin -->
 	<property name="toolsdir" value="${basedir}/vendor/bin/" />
+	<property name="phpbin" value="php" />
 
-	<condition property="is_windows">
-		<os family="windows" />
-	</condition>
+	<!-- ========================================================================================================= -->
 
-	<condition property="is_unix">
-		<os family="unix" />
-	</condition>
+	<macrodef name="call-php">
+		<attribute name="failOnError" default="true" />
+		<element name="args" optional="n" />
+		<sequential>
+		    <exec executable="${phpbin}" resultproperty="exitcode"
+				failonerror="@{failOnError}">
+		        <args />
+		    </exec>
+		</sequential>
+	</macrodef>
 
-	<target name="update-deps-windows" if="is_windows">
-		<exec executable="composer.cmd" failonerror="true">
-			<arg value="update" />
-		</exec>
-	</target>
+	<macrodef name="call-php-using-filesets">
+		<attribute name="failOnError" default="true" />
+		<element name="args" optional="n" />
+		<sequential>
+		    <apply executable="${phpbin}" resultproperty="exitcode"
+				failonerror="@{failOnError}">
+		        <args />
+		    </apply>
+		</sequential>
+	</macrodef>
 
-	<target name="update-deps-unix" if="is_unix">
-		<exec executable="composer" failonerror="true">
-			<arg value="update" />
-		</exec>
-	</target>
-
-
-	<target name="update-deps" depends="update-deps-unix,update-deps-windows" />
+	<!-- ========================================================================================================= -->
 
 	<target name="build"
 		depends="prepare,lint,phploc-ci,pdepend,phpmd-ci,phpcs-ci,phpcpd-ci,phpunit,phpdox"
@@ -49,6 +51,8 @@
 		</parallel>
 	</target>
 
+	<!-- ========================================================================================================= -->
+
 	<target name="clean" unless="clean.done" description="Cleanup build artifacts">
 		<delete dir="${basedir}/build/api" />
 		<delete dir="${basedir}/build/coverage" />
@@ -60,7 +64,9 @@
 		<property name="clean.done" value="true" />
 	</target>
 
-	<target name="prepare" unless="prepare.done" depends="clean,update-deps"
+	<!-- ========================================================================================================= -->
+
+	<target name="prepare" unless="prepare.done" depends="clean"
 		description="Prepare for build">
 		<mkdir dir="${basedir}/build/api" />
 		<mkdir dir="${basedir}/build/coverage" />
@@ -70,266 +76,208 @@
 		<property name="prepare.done" value="true" />
 	</target>
 
+	<!-- ========================================================================================================= -->
+
+	<!-- Retrieve composer.phar -->
+	<target name="get-composer" description="Retrieve composer from remote" depends="prepare">
+		<get src="https://getcomposer.org/composer.phar" dest="${basedir}/build/composer.phar" />
+	</target>
+
+	<!-- ========================================================================================================= -->
+
+	<!-- Update the dependencies using composer (enabled by default) -->
+	<target name="update-deps" depends="get-composer"
+		description="Runs build including updating depedendencies">
+		<call-php>
+			<args>
+				<arg value="${basedir}/build/composer.phar" />
+				<arg value="update" />
+			</args>
+		</call-php>
+	</target>
+
+		<!-- ========================================================================================================= -->
+
 	<target name="lint" description="Perform syntax check of sourcecode files">
-		<apply executable="php" failonerror="true">
-			<arg value="-l" />
+		<call-php-using-filesets failOnError="true">
+			<args>
+				<arg value="-l" />
 
-			<fileset dir="${basedir}/src">
-				<include name="**/*.php" />
-				<modified />
-			</fileset>
+				<fileset dir="${basedir}/src">
+					<include name="**/*.php" />
+					<modified />
+				</fileset>
 
-			<fileset dir="${basedir}/tests">
-				<include name="**/*.php" />
-				<modified />
-			</fileset>
-		</apply>
+				<fileset dir="${basedir}/tests">
+					<include name="**/*.php" />
+					<modified />
+				</fileset>
+			</args>
+		</call-php-using-filesets>
 	</target>
 
-	<target name="phploc" depends="phploc-unix,phploc-windows"
-		description="Measure project size using PHPLOC and print human readable output. Intended for usage on the command line." />
+	<!-- ========================================================================================================= -->
 
-	<target name="phploc-windows" if="is_windows">
-		<exec executable="${toolsdir}phploc.bat">
-			<arg value="--count-tests" />
-			<arg path="${basedir}/src" />
-			<arg path="${basedir}/tests" />
-		</exec>
+	<target name="phploc" depends="update-deps"
+		description="Measure project size using PHPLOC and print human readable output. Intended for usage on the command line.">
+		<call-php>
+			<args>
+				<arg path="${basedir}/vendor/phploc/phploc/phploc" />
+				<arg value="--count-tests" />
+				<arg path="${basedir}/src" />
+				<arg path="${basedir}/tests" />
+			</args>
+		</call-php>
 	</target>
 
-	<target name="phploc-unix" if="is_unix">
-		<exec executable="${toolsdir}phploc">
-			<arg value="--count-tests" />
-			<arg path="${basedir}/src" />
-			<arg path="${basedir}/tests" />
-		</exec>
+	<target name="phploc-ci" depends="update-deps"
+		description="Measure project size using PHPLOC and log result in CSV and XML format. Intended for usage within a continuous integration environment.">
+		<call-php>
+			<args>
+				<arg path="${basedir}/vendor/phploc/phploc/phploc" />
+				<arg value="--count-tests" />
+				<arg value="--log-csv" />
+				<arg path="${basedir}/build/logs/phploc.csv" />
+				<arg value="--log-xml" />
+				<arg path="${basedir}/build/logs/phploc.xml" />
+				<arg path="${basedir}/src" />
+				<arg path="${basedir}/tests" />
+			</args>
+		</call-php>
 	</target>
 
-	<target name="phploc-ci" depends="prepare,phploc-ci-unix,phploc-ci-windows"
-		description="Measure project size using PHPLOC and log result in CSV and XML format. Intended for usage within a continuous integration environment." />
+	<!-- ========================================================================================================= -->
 
-	<target name="phploc-ci-windows" if="is_windows">
-		<exec executable="${toolsdir}phploc.bat">
-			<arg value="--count-tests" />
-			<arg value="--log-csv" />
-			<arg path="${basedir}/build/logs/phploc.csv" />
-			<arg value="--log-xml" />
-			<arg path="${basedir}/build/logs/phploc.xml" />
-			<arg path="${basedir}/src" />
-			<arg path="${basedir}/tests" />
-		</exec>
+	<target name="pdepend" depends="update-deps"
+		description="Calculate software metrics using PHP_Depend and log result in XML format. Intended for usage within a continuous integration environment.">
+		<call-php>
+			<args>
+				<arg path="${basedir}/vendor/pdepend/pdepend/src/bin/pdepend" />
+				<arg value="--jdepend-xml=${basedir}/build/logs/jdepend.xml" />
+				<arg value="--jdepend-chart=${basedir}/build/pdepend/dependencies.svg" />
+				<arg
+					value="--overview-pyramid=${basedir}/build/pdepend/overview-pyramid.svg" />
+				<arg path="${basedir}/src" />
+			</args>
+		</call-php>
 	</target>
 
-	<target name="phploc-ci-unix" if="is_unix">
-		<exec executable="${toolsdir}phploc">
-			<arg value="--count-tests" />
-			<arg value="--log-csv" />
-			<arg path="${basedir}/build/logs/phploc.csv" />
-			<arg value="--log-xml" />
-			<arg path="${basedir}/build/logs/phploc.xml" />
-			<arg path="${basedir}/src" />
-			<arg path="${basedir}/tests" />
-		</exec>
+	<!-- ========================================================================================================= -->
+
+	<target name="phpmd" depends="update-deps"
+		description="Perform project mess detection using PHPMD and print human readable output. Intended for usage on the command line before committing.">
+		<call-php>
+			<args>
+				<arg path="${basedir}/vendor/phpmd/phpmd/src/bin/phpmd" />
+				<arg path="${basedir}/src" />
+				<arg value="text" />
+				<arg path="${basedir}/phpmd.xml" />
+			</args>
+		</call-php>
 	</target>
 
-	<target name="pdepend" depends="prepare,pdepend-unix,pdepend-windows"
-		description="Calculate software metrics using PHP_Depend and log result in XML format. Intended for usage within a continuous integration environment." />
-
-	<target name="pdepend-windows" if="is_windows">
-		<exec executable="${toolsdir}pdepend.bat">
-			<arg value="--jdepend-xml=${basedir}/build/logs/jdepend.xml" />
-			<arg value="--jdepend-chart=${basedir}/build/pdepend/dependencies.svg" />
-			<arg
-				value="--overview-pyramid=${basedir}/build/pdepend/overview-pyramid.svg" />
-			<arg path="${basedir}/src" />
-		</exec>
+	<target name="phpmd-ci" depends="update-deps"
+		description="Perform project mess detection using PHPMD and log result in XML format. Intended for usage within a continuous integration environment.">
+		<call-php>
+			<args>
+				<arg path="${basedir}/vendor/phpmd/phpmd/src/bin/phpmd" />
+				<arg path="${basedir}/src" />
+				<arg value="xml" />
+				<arg path="${basedir}/phpmd.xml" />
+				<arg value="--reportfile" />
+				<arg path="${basedir}/build/logs/pmd.xml" />
+			</args>
+		</call-php>
 	</target>
 
+	<!-- ========================================================================================================= -->
 
-	<target name="pdepend-unix" if="is_unix">
-		<exec executable="${toolsdir}pdepend">
-			<arg value="--jdepend-xml=${basedir}/build/logs/jdepend.xml" />
-			<arg value="--jdepend-chart=${basedir}/build/pdepend/dependencies.svg" />
-			<arg
-				value="--overview-pyramid=${basedir}/build/pdepend/overview-pyramid.svg" />
-			<arg path="${basedir}/src" />
-		</exec>
+	<target name="phpcs" depends="update-deps"
+		description="Find coding standard violations using PHP_CodeSniffer and print human readable output. Intended for usage on the command line before committing.">
+		<call-php>
+			<args>
+				<arg path="${basedir}/vendor/squizlabs/php_codesniffer/scripts/phpcs" />
+				<arg value="--standard=PSR2" />
+				<arg value="--extensions=php" />
+				<arg value="--ignore=autoload.php" />
+				<arg value="--report=xml" />
+				<arg value="--report-file=build/logs/phpcs.log" />
+				<arg path="${basedir}/src" />
+				<arg path="${basedir}/tests" />
+			</args>
+		</call-php>
 	</target>
 
-	<target name="phpmd" depends="phpmd-unix,phpmd-windows"
-		description="Perform project mess detection using PHPMD and print human readable output. Intended for usage on the command line before committing." />
-
-	<target name="phpmd-windows" if="is_windows">
-		<exec executable="${toolsdir}phpmd.bat">
-			<arg path="${basedir}/src" />
-			<arg value="text" />
-			<arg path="${basedir}/phpmd.xml" />
-		</exec>
+	<target name="phpcs-ci" depends="update-deps"
+		description="Find coding standard violations using PHP_CodeSniffer and log result in XML format. Intended for usage within a continuous integration environment.">
+		<call-php>
+			<args>
+				<arg path="${basedir}/vendor/squizlabs/php_codesniffer/scripts/phpcs" />
+				<arg value="--report=checkstyle" />
+				<arg value="--report-file=${basedir}/build/logs/checkstyle.xml" />
+				<arg value="--standard=PSR2" />
+				<arg value="--extensions=php" />
+				<arg value="--ignore=autoload.php" />
+				<arg path="${basedir}/src" />
+			</args>
+		</call-php>
 	</target>
 
-	<target name="phpmd-unix" if="is_windows">
-		<exec executable="${toolsdir}phpmd">
-			<arg path="${basedir}/src" />
-			<arg value="text" />
-			<arg path="${basedir}/phpmd.xml" />
-		</exec>
+	<!-- ========================================================================================================= -->
+
+	<target name="phpcpd" depends="update-deps"
+		description="Find duplicate code using PHPCPD and print human readable output. Intended for usage on the command line before committing.">
+		<call-php>
+			<args>
+				<arg path="${basedir}/vendor/sebastian/phpcpd/phpcpd" />
+				<arg path="${basedir}/src" />
+			</args>
+		</call-php>
 	</target>
 
-	<target name="phpmd-ci" depends="prepare,phpmd-ci-unix,phpmd-ci-windows"
-		description="Perform project mess detection using PHPMD and log result in XML format. Intended for usage within a continuous integration environment." />
-
-	<target name="phpmd-ci-windows" if="is_windows">
-		<exec executable="${toolsdir}phpmd.bat">
-			<arg path="${basedir}/src" />
-			<arg value="xml" />
-			<arg path="${basedir}/phpmd.xml" />
-			<arg value="--reportfile" />
-			<arg path="${basedir}/build/logs/pmd.xml" />
-		</exec>
+	<target name="phpcpd-ci" depends="update-deps"
+		description="Find duplicate code using PHPCPD and log result in XML format. Intended for usage within a continuous integration environment.">
+		<call-php>
+			<args>
+				<arg path="${basedir}/vendor/sebastian/phpcpd/phpcpd" />
+				<arg value="--log-pmd" />
+				<arg path="${basedir}/build/logs/pmd-cpd.xml" />
+				<arg path="${basedir}/src" />
+			</args>
+		</call-php>
 	</target>
 
-	<target name="phpmd-ci-unix" if="is_unix">
-		<exec executable="${toolsdir}phpmd">
-			<arg path="${basedir}/src" />
-			<arg value="xml" />
-			<arg path="${basedir}/phpmd.xml" />
-			<arg value="--reportfile" />
-			<arg path="${basedir}/build/logs/pmd.xml" />
-		</exec>
+	<!-- ========================================================================================================= -->
+
+	<target name="phpunit" depends="update-deps" description="Run unit tests with PHPUnit">
+		<call-php>
+			<args>
+				<arg path="${basedir}/vendor/phpunit/phpunit/phpunit" />
+				<arg value="--configuration" />
+				<arg path="${basedir}/phpunit.xml" />
+				<arg value="--coverage-clover" />
+				<arg path="${basedir}/build/logs/clover.xml" />
+				<arg value="--coverage-crap4j" />
+				<arg path="${basedir}/build/logs/crap4j.xml" />
+				<arg value="--log-junit" />
+				<arg path="${basedir}/build/logs/junit.xml" />
+				<arg value="--coverage-html" />
+				<arg path="${basedir}/build/coverage/html" />
+				<arg value="--coverage-xml" />
+				<arg path="${basedir}/build/coverage/xml" />
+			</args>
+		</call-php>
 	</target>
 
-	<target name="phpcs"
-		description="Find coding standard violations using PHP_CodeSniffer and print human readable output. Intended for usage on the command line before committing." />
+	<!-- ========================================================================================================= -->
 
-	<target name="phpcs-windows" if="is_windows">
-		<exec executable="${toolsdir}phpcs.bat">
-			<arg value="--standard=PSR2" />
-			<arg value="--extensions=php" />
-			<arg value="--ignore=autoload.php" />
-			<arg value="--report=xml" />
-			<arg value="--report-file=build/logs/phpcs.log" />
-			<arg path="${basedir}/src" />
-			<arg path="${basedir}/tests" />
-		</exec>
-	</target>
-
-	<target name="phpcs-unix" if="is_unix">
-		<exec executable="${toolsdir}phpcs">
-			<arg value="--standard=PSR2" />
-			<arg value="--extensions=php" />
-			<arg value="--ignore=autoload.php" />
-			<arg path="${basedir}/src" />
-			<arg path="${basedir}/tests" />
-		</exec>
-	</target>
-
-	<target name="phpcs-ci" depends="prepare,phpcs-ci-unix,phpcs-ci-windows"
-		description="Find coding standard violations using PHP_CodeSniffer and log result in XML format. Intended for usage within a continuous integration environment." />
-
-	<target name="phpcs-ci-windows" if="is_windows">
-		<exec executable="${toolsdir}phpcs.bat">
-			<arg value="--report=checkstyle" />
-			<arg value="--report-file=${basedir}/build/logs/checkstyle.xml" />
-			<arg value="--standard=PSR2" />
-			<arg value="--extensions=php" />
-			<arg value="--ignore=autoload.php" />
-			<arg path="${basedir}/src" />
-		</exec>
-	</target>
-
-	<target name="phpcs-ci-unix" if="is_unix">
-		<exec executable="${toolsdir}phpcs" output="/dev/null">
-			<arg value="--report=checkstyle" />
-			<arg value="--report-file=${basedir}/build/logs/checkstyle.xml" />
-			<arg value="--standard=PSR2" />
-			<arg value="--extensions=php" />
-			<arg value="--ignore=autoload.php" />
-			<arg path="${basedir}/src" />
-		</exec>
-	</target>
-
-	<target name="phpcpd" depends="phpcpd-unix,phpcpd-windows"
-		description="Find duplicate code using PHPCPD and print human readable output. Intended for usage on the command line before committing." />
-
-	<target name="phpcpd-windows" if="is_windows">
-		<exec executable="${toolsdir}phpcpd.bat">
-			<arg path="${basedir}/src" />
-		</exec>
-	</target>
-
-	<target name="phpcpd-unix" if="is_unix">
-		<exec executable="${toolsdir}phpcpd">
-			<arg path="${basedir}/src" />
-		</exec>
-	</target>
-
-	<target name="phpcpd-ci" depends="prepare,phpcpd-ci-unix,phpcpd-ci-windows"
-		description="Find duplicate code using PHPCPD and log result in XML format. Intended for usage within a continuous integration environment." />
-
-	<target name="phpcpd-ci-windows" if="is_windows">
-		<exec executable="${toolsdir}phpcpd.bat">
-			<arg value="--log-pmd" />
-			<arg path="${basedir}/build/logs/pmd-cpd.xml" />
-			<arg path="${basedir}/src" />
-		</exec>
-	</target>
-
-	<target name="phpcpd-ci-unix" if="is_unix">
-		<exec executable="${toolsdir}phpcpd">
-			<arg value="--log-pmd" />
-			<arg path="${basedir}/build/logs/pmd-cpd.xml" />
-			<arg path="${basedir}/src" />
-		</exec>
-	</target>
-
-	<target name="phpunit" depends="prepare,phpunit-unix,phpunit-windows"
-		description="Run unit tests with PHPUnit" />
-
-	<target name="phpunit-windows" if="is_windows">
-		<exec executable="${toolsdir}phpunit.bat" failonerror="true">
-			<arg value="--configuration" />
-			<arg path="${basedir}/phpunit.xml" />
-			<arg value="--coverage-clover" />
-			<arg path="${basedir}/build/logs/clover.xml" />
-			<arg value="--coverage-crap4j" />
-			<arg path="${basedir}/build/logs/crap4j.xml" />
-			<arg value="--log-junit" />
-			<arg path="${basedir}/build/logs/junit.xml" />
-			<arg value="--coverage-html" />
-			<arg path="${basedir}/build/coverage/html" />
-			<arg value="--coverage-xml" />
-			<arg path="${basedir}/build/coverage/xml" />
-		</exec>
-	</target>
-
-	<target name="phpunit-unix" if="is_unix">
-		<exec executable="${toolsdir}phpunit" failonerror="true">
-			<arg value="--configuration" />
-			<arg path="${basedir}/phpunit.xml" />
-			<arg value="--coverage-clover" />
-			<arg path="${basedir}/build/logs/clover.xml" />
-			<arg value="--coverage-crap4j" />
-			<arg path="${basedir}/build/logs/crap4j.xml" />
-			<arg value="--log-junit" />
-			<arg path="${basedir}/build/logs/junit.xml" />
-			<arg value="--coverage-html" />
-			<arg path="${basedir}/build/coverage/html" />
-			<arg value="--coverage-xml" />
-			<arg path="${basedir}/build/coverage/xml" />
-		</exec>
-	</target>
-
-	<target name="phpdox"
-		depends="phploc-ci,phpcs-ci,phpmd-ci,phpdox-unix,phpdox-windows"
+	<target name="phpdox" depends="update-deps,phploc-ci,phpcs-ci,phpmd-ci"
 		description="Generate project documentation using phpDox">
-	</target>
-
-	<target name="phpdox-windows" if="is_windows">
-		<exec executable="${toolsdir}phpdox.bat" dir="${basedir}" />
-	</target>
-
-	<target name="phpdox-unix" if="is_unix">
-		<exec executable="${toolsdir}phpdox" dir="${basedir}" />
+		<call-php>
+			<args>
+				<arg path="${basedir}/vendor/theseer/phpdox/phpdox" />
+			</args>
+		</call-php>
 	</target>
 </project>
 
